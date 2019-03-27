@@ -330,6 +330,9 @@ ASALocalRun/
 .mfractor/
 
 
+# txt file
+*.txt
+
 # vs project
 kCliqueCore.vcxproj
 kCliqueCore.vcxproj.filters
