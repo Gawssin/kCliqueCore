@@ -328,3 +328,10 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
+
+
+# vs project
+kCliqueCore.vcxproj
+kCliqueCore.vcxproj.filters
+kCliqueCore.vcxproj.user
+
