@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <windows.h>
 
-#define NLINKS 100000000
+#define NLINKS 1000000
 using namespace std;
 
 class edge
@@ -20,16 +20,25 @@ public:
 	int t;
 };
 
-
+class iddeg
+{
+public:
+	int id;
+	int degree;
+};
 
 class Graph{
 public:
+	Graph();
+	Graph(const Graph &obj);
+	~Graph();
 	void readedgelist(string edgelist);
 	void coreDecomposition();
 	void mkGraph();
 	int outLargeClique();
 	bool isEdge(int, int);
-	Graph mksub(Graph &, vector<int>);
+	void mksub(Graph &, int *, int);
+	int color(int *);
 	//bool isEdge(int, int);
 
 	int n;
@@ -50,7 +59,39 @@ inline int max3(int a, int b, int c) {
 	return (a>c) ? a : c;
 }
 
+Graph::Graph(void){}
+Graph::~Graph(void)
+{
+	if (deg != NULL) delete[] deg;
+	if (cd != NULL) delete[] cd;
+	if (adj != NULL) delete[] adj;
+	if (coreRank != NULL) delete[] coreRank;
+	if (coreNum != NULL) delete[] coreNum;
+	if (bin != NULL) delete[] bin;
+}
+Graph::Graph(const Graph &obj)
+{
+	n = obj.n, e = obj.e, maxDeg = obj.maxDeg, edges = obj.edges;
+	edges = obj.edges;
 
+	if (deg != NULL) delete[] deg;
+	if (obj.deg != NULL) deg = new int[n], memcpy(deg, obj.deg, n * sizeof(int));
+
+	if (cd != NULL) delete[] cd;
+	if (obj.cd != NULL) cd = new int[n], memcpy(cd, obj.cd, n * sizeof(int));
+
+	if (adj != NULL) delete[] adj;
+	if (obj.adj != NULL) adj = new int[2*e], memcpy(adj, obj.adj, 2*e* sizeof(int));
+
+	if (coreRank != NULL) delete[] coreRank;
+	if (obj.coreRank != NULL) coreRank = new int[n], memcpy(coreRank, obj.coreRank, n * sizeof(int));
+
+	if (coreNum != NULL) delete[] coreNum;
+	if (obj.coreNum != NULL) coreNum = new int[n], memcpy(coreNum, obj.coreNum, n * sizeof(int));
+
+	if (bin != NULL) delete[] bin;
+	if (obj.bin != NULL) bin = new int[maxDeg + 2], memcpy(bin, obj.bin, (maxDeg + 2) * sizeof(int));
+}
 
 void Graph::readedgelist(string edgelist) {
 	
@@ -77,7 +118,7 @@ void Graph::readedgelist(string edgelist) {
 
 void Graph::mkGraph()
 {
-	deg = new int[n];
+	deg = new int[n]();
 	cd = new int[n + 1];
 	adj = new int[2 * e];
 	maxDeg = 0;
@@ -87,22 +128,27 @@ void Graph::mkGraph()
 		deg[edges[i].t]++;
 		maxDeg = max3(maxDeg, deg[edges[i].s], deg[edges[i].t]);
 	}
-
 	cd[0] = 0;
 	for (int i = 1; i < n + 1; i++) {
 		cd[i] = cd[i - 1] + deg[i - 1];
 		deg[i - 1] = 0;
 	}
+
 	for (int i = 0; i < e; i++) {
 		adj[cd[edges[i].s] + deg[edges[i].s]++] = edges[i].t;
 		adj[cd[edges[i].t] + deg[edges[i].t]++] = edges[i].s;
 	}
+
 	for (int i = 0; i < n; i++) sort(adj + cd[i], adj + cd[i] + deg[i]);
 }
 
 bool cmp(const pair<int, int> &a, const pair<int, int> &b)
 {
 	return a.second > b.second;
+}
+bool IGCmp(const iddeg &a, const iddeg &b)
+{
+	return a.degree == b.degree ? (a.id < b.id) : (a.degree > b.degree);
 }
 
 bool Graph::isEdge(int a, int b)
@@ -157,10 +203,10 @@ int Graph::outLargeClique()
 void Graph::coreDecomposition()
 {
 	bin = new int[maxDeg + 2]();
-	//int *bin = (int *)calloc(g->maxDeg + 2, sizeof(int));
 
+	for (int i = 0; i < n; i++) 
+		bin[deg[i]]++;
 
-	for (int i = 0; i < n; i++) bin[deg[i]]++;
 	int lastBin = bin[0], nowBin;
 	bin[0] = 0;
 	for (int i = 1; i <= maxDeg; i++)
@@ -169,11 +215,11 @@ void Graph::coreDecomposition()
 		lastBin = bin[i];
 		bin[i] = nowBin;
 	}
-	int *vert = new int[n], *pos = new int[n], *tmpDeg = new int[n];
-	//int *vert = (int *)malloc(g->n * sizeof(int)), *pos = (int *)malloc(g->n * sizeof(int)), *tmpDeg = (int *)malloc(g->n * sizeof(int));
+	int *vert = new int[n](), *pos = new int[n](), *tmpDeg = new int[n]();
 	for (int i = 0; i < n; i++)
 	{
 		pos[i] = bin[deg[i]];
+		
 		vert[bin[deg[i]]++] = i;
 		tmpDeg[i] = deg[i];
 	}
@@ -196,16 +242,17 @@ void Graph::coreDecomposition()
 		{
 			nbr = adj[i];
 
-
 			if (tmpDeg[nbr] > tmpDeg[id])
 			{
 				binFrontId = vert[bin[tmpDeg[nbr]]];
 				if (binFrontId != nbr)
 				{
+
 					pos[binFrontId] = pos[nbr];
 					pos[nbr] = bin[tmpDeg[nbr]];
 					vert[bin[tmpDeg[nbr]]] = nbr;
 					vert[pos[binFrontId]] = binFrontId;  
+					
 				}
 				bin[tmpDeg[nbr]]++;
 				tmpDeg[nbr]--;
@@ -215,15 +262,34 @@ void Graph::coreDecomposition()
 		}
 
 	}
+
 	coreNum = cNum;
+
 	coreRank = vert;
+
+	delete[] tmpDeg;
 	delete[] pos;
 }
 
-Graph Graph::mksub(Graph &sg, vector<int> nodes)
+void Graph::mksub(Graph &sg, int *nodes, int NodeNum)
 {
-	sg.n = nodes.size();
+	sg.n = NodeNum, sg.e = 0;
+	int * newFg = new int[n]();
 
+	for (int i = 0; i < NodeNum; i++) newFg[nodes[i]] = 1;
+
+	for (int i = 0; i < e; i++)
+		if (newFg[edges[i].s] == 1 && newFg[edges[i].t] == 1) sg.e++;
+
+	//printf("sg.e = %d\n", sg.e);
+	sg.edges.resize(sg.e);
+
+
+
+	//sort(nodes, nodes+NodeNum);
+	
+
+	/*
 	for (int i = 0; i < sg.n; i++)
 	{
 		int ind = cd[nodes[i]];
@@ -242,11 +308,30 @@ Graph Graph::mksub(Graph &sg, vector<int> nodes)
 			}
 		}
 	}
+	printf("sg.e = %d\n", sg.e);
 	sg.edges.resize(sg.e);
+	*/
+	
 	sg.e = 0;
-	int *lab = new int[sg.n], cnt = -1;
+	int *lab = new int[n], cnt = 0;
 	for (int i = 0; i < sg.n; i++) lab[nodes[i]] = -1;
 
+
+	for (int i = 0; i < e; i++)
+	{
+		if (newFg[edges[i].s] == 1 && newFg[edges[i].t] == 1)
+		{
+			lab[edges[i].s] = (lab[edges[i].s] == -1 ? (cnt++) : lab[edges[i].s]);
+			lab[edges[i].t] = (lab[edges[i].t] == -1 ? (cnt++) : lab[edges[i].t]);
+			sg.edges[sg.e].s = lab[edges[i].s];
+			sg.edges[sg.e].t = lab[edges[i].t];
+			sg.e++;
+		}
+	}
+
+
+	/*
+	
 	for (int i = 0; i < sg.n; i++)
 	{
 		int ind = cd[nodes[i]];
@@ -270,11 +355,64 @@ Graph Graph::mksub(Graph &sg, vector<int> nodes)
 			}
 		}
 	}
+	
+	*/
+	//printf("sg labeled\n");
 
+	delete[] newFg;
+	delete[] lab;
 	sg.mkGraph();
-
-	return sg;
 }
+
+int Graph::color(int *color)
+{
+	iddeg *ig = new iddeg[n];
+	for (int i = 0; i < n; i++)
+	{
+		ig[i].id = i;
+		ig[i].degree = deg[i];
+	}
+
+	sort(ig,ig+n,IGCmp);
+
+	//color = new int[n];
+	memset(color, -1, sizeof(int)*n);
+	int *C = new int[(ig[0].degree + 1)]();
+
+	color[ig[0].id] = 0;
+	int colorNum = 1;
+
+	for (int i = 1; i < n; i++)
+	{
+		int tmpDeg = ig[i].degree, tmpid = ig[i].id;
+		for (int j = 0; j < tmpDeg; j++)
+		{
+			int now = adj[cd[tmpid] + j];
+			if (color[now] != -1)
+				C[color[now]] = 1;
+		}
+		for (int j = 0; j < ig[0].degree + 1; j++)
+			if (C[j] == 0)
+			{
+				color[ig[i].id] = j;
+				colorNum = j > colorNum ? j : colorNum;
+				break;
+			}
+
+		for (int j = 0; j < tmpDeg; j++)
+		{
+			int now = adj[cd[tmpid] + j];
+			if (color[now] != -1)
+				C[color[now]] = 0;
+		}
+
+	}
+	//printf("color number = %d\n", colorNum);
+	delete[] ig;
+	delete[] C;
+	return colorNum;
+}
+
 
 long long combination(int n, int m)
 {
@@ -285,67 +423,286 @@ long long combination(int n, int m)
 	return res;
 }
 
-int main(int argc, char** argv) {
-
+int main(int argc, char** argv) 
+{
 	Graph g;
+	int k = atoi(argv[1]);
 	cout << "Reading edgelist from file " << argv[2] << endl;
 	g.readedgelist(argv[2]);
 	cout << "Reading edgelist finished!" << endl;
 	g.mkGraph();
+	cout << "mkGraph finished!" << endl;
 
-	//printf("LCSize[[]] \n");
 	g.coreDecomposition();
+	cout << "coreDecomposition finished!" << endl;
 
-	int k = atoi(argv[1]);
-	unsigned long long n;
 
-	/*
-	ifstream infile("C:\\Users\\Gawssin\\Source\\Repos\\kClist\\kClist\\testOut.txt");
-
-	int tmp;
-	for (int i = 0; i < g.n; i++)
+	if (g.coreNum[g.coreRank[g.n-1]] < k - 1)
 	{
-		infile >> tmp;
-		//fscanf(file, "%d", &tmp);
-		if (tmp != g.coreNum[i])
+		cout << "No " << k << "-clique core!" << endl;
+		return 0;
+	}
+
+
+	Graph cg;
+	int wCoreN = g.outLargeClique();
+	for (int Core_ind = 0; Core_ind < g.n; Core_ind++)	//first node with k-clique core number >= k-1
+	{
+		if (g.coreNum[g.coreRank[Core_ind]] >= wCoreN - 1)
 		{
-			cout << "error i = " << i << " tmp = " << tmp << " coreNum = " << g.coreNum[i] << endl;
-			//printf("error i = %d tmp = %d coreNum = %d!\n", i, tmp, g.coreNum[i]);
-			return 0;
+
+			int *CGNodes = new int[g.n - Core_ind];
+			printf("g.n - Core_ind = %d!\n", g.n - Core_ind);
+			memcpy(CGNodes, g.coreRank + Core_ind, sizeof(int) * (g.n - Core_ind));
+
+			g.mksub(cg, CGNodes, g.n - Core_ind);
+			delete[] CGNodes;
+			break;
 		}
 	}
-	*/
-	long long *lowerBound = new long long[g.n];
-	for (int i = 0; i < g.n; i++)
+
+	//long long n;
+
+
+	long long *lowerBound = new long long[cg.n];
+	printf("\nstart cg.n = %d!\n\n", cg.n);
+
+
+
+	// lowerBound
+	/*
+	for (int i = 0; i < cg.n; i++)
 	{
-		vector<int> iNbr(g.adj+g.cd[i], g.adj + g.cd[i]+g.deg[i]);
-		
+
 		Graph sg;
-		g.mksub(sg, iNbr);
+		
+		int *iNbr = new int[cg.deg[i]];
+		memcpy(iNbr, cg.adj + cg.cd[i], sizeof(int) * cg.deg[i]);
+
+		cg.mksub(sg, iNbr, cg.deg[i]);
+
 		sg.coreDecomposition();
 		int LCSize = sg.outLargeClique();
-		printf("LCSize[%d] = %d\n", i, LCSize);
+		//printf("LCSize[%d] = %d\n", i, LCSize);
 		lowerBound[i] = combination(LCSize, k - 1);
 
-		printf("lowerBound[%d] = %lld\n\n", i, lowerBound[i]);
+		//printf("lowerBound[%d] = %lld\n\n", i, lowerBound[i]);
 
-		//cout << "lowerBound = "
+	}
+	*/
 
-		/*
-		cout << "k = " << k << " sg.n = " << sg.n << " deg = " << g.deg[k] << endl;
-		for (int i = 0; i < sg.n; i++)
+
+	
+	//Graph oG = cg;
+	Graph *newG, *oldG = new Graph(cg);
+
+	//*oldG = cg;
+
+	oldG->coreDecomposition();
+	int w = oldG->outLargeClique();
+	int lwb = combination(w - 1, k - 1);
+
+
+
+	double **combin = new double *[k];
+	int maxD = oldG->maxDeg;
+	for (int i = 0; i < k; i++)
+		combin[i] = new double[maxD]();
+	for (int i = 0; i < maxD; i++) combin[0][i] = 1.0;
+	for (int i = 0; i < k; i++)	combin[i][i] = 1.0;
+
+	for (int i = 2; i < maxD; i++)
+		for (int j = 1; j < i && j < k; j++)
+			combin[j][i] = combin[j][i - 1] + combin[j - 1][i - 1];
+
+
+	printf("combin[k - 1][maxD - 1] = %lf\n", combin[k - 1][maxD - 1]);
+
+	while (true)
+	{	
+		
+		
+		int *col = new int[oldG->n], newN = 0;
+		int colNum = oldG->color(col);
+		int *newND = new int[oldG->n];
+		//delete[] col;
+		int *C = new int[oldG->maxDeg + 1]();
+		
+		int t1 = 0, t2 = 0;
+		for (int i = 0; i < oldG->n; i++)
 		{
-			cout << "node " << i << " cd " << sg.cd[i] << " deg  " << sg.deg[i] << endl;
-			for (int j = sg.cd[i]; j < sg.cd[i]+sg.deg[i]; j++)
+			int cv = 0, maxCN = 0, secCN = 0, tmpCN, wCol = -1;
+			for (int j = oldG->cd[i]; j < oldG->cd[i] + oldG->deg[i]; j++)
 			{
-				cout << sg.adj[j] << " ";
+				if (C[col[oldG->adj[j]]] == 0) cv++;
+				C[col[oldG->adj[j]]]++;
+				
+				tmpCN = C[col[oldG->adj[j]]];
+
+				if (tmpCN > maxCN)
+				{
+					if (col[oldG->adj[j]] != wCol)
+					{
+						secCN = maxCN;
+						wCol = col[oldG->adj[j]];
+					}
+					maxCN = tmpCN;
+					continue;
+				}
+
+				secCN = secCN > tmpCN ? secCN : tmpCN;
+				
 			}
-			cout << endl << endl;
+
+
+
+			double uLimit = 0;
+			if (cv == 1)
+				if (oldG->deg[i] >= w - 1)
+					newND[newN++] = i;
+			if (cv == 2)
+				uLimit = maxCN * combin[k - 2][oldG->deg[i] - maxCN] + combin[k - 1][oldG->deg[i] - maxCN];
+
+			if (cv >= 3)
+				uLimit = maxCN * secCN * combin[k - 3][oldG->deg[i] - maxCN - secCN]
+				+ (maxCN + secCN) * combin[k - 2][oldG->deg[i] - maxCN - secCN]
+				+ combin[k - 1][oldG->deg[i] - maxCN - secCN];
+
+			if (uLimit < 0) 
+				printf("over flow!\n");
+
+
+			if (uLimit >= lwb) newND[newN++] = i;
+
+
+
+			for (int j = oldG->cd[i]; j < oldG->cd[i] + oldG->deg[i]; j++)
+				C[col[oldG->adj[j]]] = 0;
 		}
 
-		*/
+		//printf("t1 = %d t2 = %d\n naive upperBound there newN = %d oldG.n = %d\n", t1, t2, newN, oldG->n);
+
+
+		if (newN == oldG->n)
+		{
+			printf("start dp there\n");
+			/*
+			ofstream outFile;
+			outFile.open("C:\\Users\\Gawssin\\Source\\Repos\\Code\\kCliqueListing\\outCoreIn.txt");
+			for (int i = 0; i < oldG->e; i++)
+			{
+				outFile << oldG->edges[i].s << " " << oldG->edges[i].t << endl;
+
+			}
+			outFile.close();
+			*/
+
+			newN = 0;
+			
+			for (int i = 0; i < oldG->n; i++)
+			{
+				//printf("i = %d\n", i);
+				int colN = 0;
+				for (int j = oldG->cd[i]; j < oldG->cd[i] + oldG->deg[i]; j++)
+				{
+					if (C[col[oldG->adj[j]]] == 0) colN++;
+					C[col[oldG->adj[j]]]++;
+				}
+
+				if (colN >= k - 1)
+				//if (colN == k - 1) upperBound = 1;
+				{
+					int *nbrCol = new int[colN];
+					colN = 0;
+
+					for (int j = 0; j < oldG->maxDeg + 1; j++)
+						if(C[j]) nbrCol[colN++] = C[j];
+
+
+					double **dpCol = new double *[colN + 1];
+					for (int j = 0; j < colN + 1; j++)
+						dpCol[j] = new double[k];
+
+					for (int j = 0; j < colN + 1; j++)	dpCol[j][0] = 1;
+					for (int j = 1; j < k; j++)			dpCol[j][j] = nbrCol[j - 1] * dpCol[j - 1][j - 1];
+					for (int j = 2; j < colN + 1; j++)
+						for (int p = 1; p < j && p < k; p++)
+							dpCol[j][p] = nbrCol[j - 1] * dpCol[j - 1][p - 1] + dpCol[j - 1][p];
+
+					
+					if (dpCol[colN][k - 1] < 0)
+						printf("dpCol over flow\n");
+
+
+					if (dpCol[colN][k - 1] >= lwb*1.0)
+						newND[newN++] = i;
+
+					/*
+					if ((colN + k - 2 < w - 1) && dpCol[colN][k - 1] >= lwb)
+					{
+						printf("pause!\n");
+					}
+					*/
+
+
+
+					delete[] nbrCol;
+
+					for (int j = 0; j < colN + 1; j++)
+						delete[] dpCol[j];
+					delete[] dpCol;
+				}
+				for (int j = oldG->cd[i]; j < oldG->cd[i] + oldG->deg[i]; j++)
+					C[col[oldG->adj[j]]] = 0;
+
+			}
+			
+		}
+			
+		delete[] C;
+		if (newN < oldG->n)
+		{
+			newG = new Graph;
+			oldG->mksub(*newG,newND,newN);
+			delete oldG;
+			oldG = newG;
+		}
+		else break;
 	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+	int minDeg = 1000000;
+	for (int i = 0; i < oldG->n; i++) minDeg = minDeg < oldG->deg[i] ? minDeg : oldG->deg[i];
+
+
+	/*
+	ofstream outFile;
+	outFile.open("C:\\Users\\Gawssin\\Source\\Repos\\Code\\kCliqueListing\\outCoreInW.txt");
 	
+	for (int i = 0; i < oldG->e; i++)
+	{
+		outFile << oldG->edges[i].s << " " << oldG->edges[i].t << endl;
+
+	}
+
+	outFile.close();
+	*/
+
+
+	printf("\nNow G.n = %d minDeg = %d \n",oldG->n, minDeg);
+
+
 
 	return 0;
 
